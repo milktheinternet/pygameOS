@@ -379,12 +379,16 @@ class Node:
         node.parent = self
 
 class SurfaceNode(Node):
-    def __init__(self, app, pos=(0,0), size=(100, 100)):
+    def __init__(self, app, pos=(0,0), size=(100, 100), draw_srf = None):
         super().__init__(app, pos)
         self.size = size
         self.srf = pg.Surface(size)
+        self.draw_srf = draw_srf
     def render(self):
-        self.app.srf.blit(self.srf, self.global_pos)
+        if self.draw_srf:
+            self.draw_srf.blit(self.srf, self.global_pos)
+        else:
+            self.app.srf.blit(self.srf, self.global_pos)
         super().render()
 
 class RectNode(Node):
@@ -398,8 +402,8 @@ class RectNode(Node):
         super().render()
 
 class TextNode(SurfaceNode):
-    def __init__(self, app, pos=(0,0), size=(100, 100), text="This is a TextNode", font = None, color=(255,255,255), background=(0,0,0), center = False):
-        super().__init__(app, pos, size)
+    def __init__(self, app, pos=(0,0), size=(100, 100), text="This is a TextNode", font = None, color=(255,255,255), background=(0,0,0), center = False, draw_srf = None):
+        super().__init__(app, pos, size, draw_srf)
         self.text = text
         self.old_text = None
         self.font = font if font else self.vos.font
@@ -418,6 +422,43 @@ class TextNode(SurfaceNode):
                 w, h = srf.get_size()
                 W, H = self.size
                 self.srf.blit(srf, (W//2-w//2,H//2-h//2))
+        super().render()
+
+class ScrollTextNode(SurfaceNode):
+    def __init__(self, app, pos=(0,0), size=(100, 100), text="This is a TextNode", font = None, color=(255,255,255), background=(0,0,0), center = False, line_height = None, draw_srf = None):
+        super().__init__(app, pos, size, draw_srf)
+        self.text = text
+        self.old_text = None
+        self.font = font if font else self.vos.font
+        self.color = color
+        self.bg = background
+        self.center = center
+        self.line_height = line_height if line_height else self.font.render("lyg", True, [0]*3).get_height()
+        self.scroll = 0
+        self.old_scroll = 0
+        self.nlines = 0
+        self.speed = 25
+    def update(self):
+        if not self.app.visible:
+            return
+        self.scroll += self.vos.input.scroll * self.speed
+        self.scroll = max(min(self.scroll, 0), -(self.line_height * self.nlines - self.size[1]))
+        super().update()
+    def render(self):
+        if self.text != self.old_text:
+            self.old_text = self.text
+            self.old_scroll = self.scroll
+            lines = self.text.split('\n')
+            self.nlines = len(lines)
+            self.srf = pg.Surface((self.line_height * self.nlines))
+            if self.bg:
+                self.srf.fill(self.bg)
+            y = self.scroll
+            for line in lines:
+                if y > -self.line_height and y < self.size[1]:
+                    text = TextNode(self.app, (0,y), (self.size[0], self.line_height), line, self.font, self.color, self.bg, self.center, self.srf)
+                    text.render()
+                y += self.line_height
         super().render()
 
 class ButtonNode(TextNode):

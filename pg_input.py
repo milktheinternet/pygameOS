@@ -2,7 +2,6 @@ from os import environ
 environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "TRUE"
 import pygame as pg
 
-VALID_CHRS = '`1234567890-=qwertyuiop[]\\asdfghjkl;\'zxcvbnm,./~!@#$%^&*()_+QWERTYUIOP{}|ASDFGHJKL:"ZXCVBNM<>? '
 
 class Input:
     def __init__(self):
@@ -21,8 +20,11 @@ class Input:
         self.click = False
 
         self.on_click = []
+
+        self.scroll = 0
         
     def update(self):
+        self.scroll = 0
         self.keys_inst = []
         self.click_inst = False
         for event in pg.event.get():
@@ -49,6 +51,9 @@ class Input:
 
             elif event.type == pg.MOUSEBUTTONUP:
                 self.click = False
+
+            elif event.type == pg.MOUSEWHEEL:
+                self.scroll = event.y
             
             elif event.type == pg.QUIT:
                 self.quit = True
