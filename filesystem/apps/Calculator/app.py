@@ -1,12 +1,23 @@
 from virtualOS import *
-from math import ceil
+from math import *
 
 class MyApp(NodeApp):
     def __init__(self, name, vos, resolution=(300, 400)):
         super().__init__(name, vos, resolution)
-        self.resize()
+        self.init_res = resolution
+        self.setup_nodes()
+        self.fs = False
+        self.vos.input.text = ""
+        self.reset()
+        self.update_exp()
 
-    def resize(self, expression_height = 35, font_size = 30, margin = 5):
+    def fullscreen(self):
+        self.fs = not self.fs
+        self.resize(None if self.fs else self.init_res)
+        self.setup_nodes()
+        self.update_exp()
+
+    def setup_nodes(self, expression_height = 35, font_size = 30, margin = 5):
 
         self.children = []
 
@@ -17,8 +28,6 @@ class MyApp(NodeApp):
         
         self.expression_node = TextNode(self, size=(W, EXP_H), text = "ANSWER HERE", font = self.font)
         self.add(self.expression_node)
-        
-        self.expression = ""
         
         button_data = {
             "(":lambda:self.type("("),
@@ -45,6 +54,8 @@ class MyApp(NodeApp):
             "0":lambda:self.type("0"),
             "-":lambda:self.type("-"),
             "=":lambda:self.solve(),
+
+            "FS":self.fullscreen,
             }
         self.btns_per_row = 4
         BTN_W = W//self.btns_per_row
@@ -60,11 +71,17 @@ class MyApp(NodeApp):
                 y += BTN_H
 
     def solve(self):
-        solved = eval(self.expression)
-        if int(solved) == solved:
-            solved = int(solved)
-        self.expression = str(solved)
-        self.update_exp()
+        try:
+            solved = eval(self.expression)
+            if int(solved) == solved:
+                solved = int(solved)
+            else:
+                solved = round(solved, 10)
+            self.expression = str(solved)
+            self.update_exp()
+        except:
+            self.expression = "ERR"
+            self.update_exp()
 
     def backspace(self):
         if self.expression:
@@ -81,3 +98,14 @@ class MyApp(NodeApp):
 
     def update_exp(self):
         self.expression_node.text = self.expression
+
+    def update(self):
+        super().update()
+        inp = self.vos.input
+        if inp.text:
+            self.type(inp.text)
+            inp.text = ""
+        elif pg.K_BACKSPACE in inp.keys_inst:
+            self.backspace()
+        elif pg.K_RETURN in inp.keys_inst:
+            self.solve()

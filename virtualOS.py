@@ -26,6 +26,8 @@ class VirtualOS:
         self.apps = []
         self.on_run = []
 
+        self.time = 0
+
         self.font = pg.font.SysFont('monospace', 17)
 
         self.filesystem = 'filesystem/'
@@ -37,6 +39,8 @@ class VirtualOS:
                 self.delete(self.appdir+folder)
 
         self.LOG = ""
+
+        self.copied_text = ""
 
     def log(self, text):
         #print(text)
@@ -58,10 +62,10 @@ class VirtualOS:
 
     def update(self):
         self.input.update()
+        self.time += self.clock.get_time()
         for app in self.apps:
-            app.update()
-            if app.visible:
-                self.top_app = app
+            if app.can_update:
+                app.update()
         
     def render(self):
         if self.bg:
@@ -177,6 +181,11 @@ class VirtualOS:
             if app.name == name:
                 return app
 
+    def stop_all_window_apps(self):
+        for app in self.apps:
+            if "WindowApp" in app.flags:
+                app.can_update = False
+
     def run(self, name):
         if name in self.app_names:
             self.log(f"{name} is currently running.")
@@ -196,6 +205,7 @@ class VirtualOS:
 class App:
     # vos short for virtual OS
     def __init__(self, name, vos):
+        self.can_update = True
         self.name = name
         self.vos = vos
         self.path = self.vos.appdir + self.name + '/'
@@ -266,6 +276,8 @@ class WindowApp(SurfaceApp):
     def __init__(self, name, vos, resolution= None, pos = None):
         super().__init__(name, vos, resolution, pos)
 
+        self.can_update = False
+
         self.flags.append("WindowApp")
         
         self.tab_height = 15
@@ -273,17 +285,34 @@ class WindowApp(SurfaceApp):
         self.tab_close = (255, 0, 0)
         self.tab_minimize = (255, 200, 0)
 
+        self.can_minimize = True
+
         self.dragging = False
         self.drag_from = (0, 0)
 
         self.bg = (50,50,50)
+
+    def resize(self, resolution = None):
+        if resolution:
+            self.res = resolution
+        else:
+            self.res = self.vos.res
+        self.center()
+        self.srf = pg.Surface(self.res)
 
     def make_tab_srf(self):
         w, h = (self.res[0], self.tab_height)
         self.tab_srf = pg.Surface((w,h))
         self.tab_srf.fill(self.tab_bg)
         pg.draw.rect(self.tab_srf, self.tab_close, (w-h, 0, h, h))
-        pg.draw.rect(self.tab_srf, self.tab_minimize, (w-h*2, 0, h, h))
+        if self.can_minimize:
+            pg.draw.rect(self.tab_srf, self.tab_minimize, (w-h*2, 0, h, h))
+
+    def focus(self):
+        self.vos.stop_all_window_apps()
+        self.can_update = True
+        self.vos.apps.remove(self)
+        self.vos.apps.append(self)
 
     def on_run(self):
         self.srf.fill(self.bg)
@@ -297,12 +326,18 @@ class WindowApp(SurfaceApp):
         tabx, taby = self.tab_pos
         tabh = self.tab_height
         mx, my = self.vos.input.mouse
+
+        w,h = self.res
+
+        if point_within_rect((mx, my), (tabx, taby, w, h+tabh)):
+            self.focus()
+        
         if point_within_rect((mx, my), (tabx, taby, self.res[0], tabh)):
             if mx > tabx + self.res[0] - tabh: # close button
                 self.close()
-            elif mx > tabx + self.res[0] - tabh*2: # minimize button
+            elif self.can_minimize and mx > tabx + self.res[0] - tabh*2: # minimize button
                 self.minimize()
-            else: # drag
+            elif self.can_update: # drag
                 self.dragging = True
                 self.drag_from = (mx-self.pos[0], my-self.pos[1])
 
@@ -337,7 +372,8 @@ class WindowApp(SurfaceApp):
     def render(self):
         if self.visible:
             self.vos.screen.blit(self.srf, self.pos)
-            self.vos.screen.blit(self.tab_srf, self.tab_pos)
+            if self.res != self.vos.res:
+                self.vos.screen.blit(self.tab_srf, self.tab_pos)
 
 class NodeApp(WindowApp):
     def __init__(self, name, vos, resolution=None):
@@ -356,6 +392,10 @@ class NodeApp(WindowApp):
     def add(self, node):
         self.children.append(node)
         node.parent = self
+        node.orphan = False
+    def remove(self, node):
+        self.children.remove(node)
+        node.orphan = True
 
 class Node:
     def __init__(self, app, pos=(0,0)):
@@ -364,6 +404,7 @@ class Node:
         self.children = []
         self.parent = None
         self.x, self.y = pos
+        self.orphan = True
     @property
     def global_pos(self):
         x, y = self.parent.global_pos
@@ -377,6 +418,10 @@ class Node:
     def add(self, node):
         self.children.append(node)
         node.parent = self
+        node.orphan = False
+    def remove(self, node):
+        self.children.remove(node)
+        node.orphan = True
 
 class SurfaceNode(Node):
     def __init__(self, app, pos=(0,0), size=(100, 100), draw_srf = None):
@@ -385,10 +430,8 @@ class SurfaceNode(Node):
         self.srf = pg.Surface(size)
         self.draw_srf = draw_srf
     def render(self):
-        if self.draw_srf:
-            self.draw_srf.blit(self.srf, self.global_pos)
-        else:
-            self.app.srf.blit(self.srf, self.global_pos)
+        srf = self.draw_srf if self.draw_srf else self.app.srf
+        srf.blit(self.srf, self.global_pos)
         super().render()
 
 class RectNode(Node):
@@ -435,34 +478,42 @@ class ScrollTextNode(SurfaceNode):
         self.center = center
         self.line_height = line_height if line_height else self.font.render("lyg", True, [0]*3).get_height()
         self.scroll = 0
-        self.old_scroll = 0
+        self.old_scroll = None
         self.nlines = 0
-        self.speed = 25
+        self.speed = 1
     def update(self):
         if not self.app.visible:
             return
-        self.scroll += self.vos.input.scroll * self.speed
-        self.scroll = max(min(self.scroll, 0), -(self.line_height * self.nlines - self.size[1]))
+        self.scroll -= self.vos.input.scroll * self.speed * self.line_height
+        self.scroll = max(min(self.scroll, (self.line_height * self.nlines - self.size[1])), 0)
         super().update()
     def render(self):
         if self.text != self.old_text:
-            self.old_text = self.text
-            self.old_scroll = self.scroll
             lines = self.text.split('\n')
             self.nlines = len(lines)
-            self.srf = pg.Surface((self.line_height * self.nlines))
+            self.text_srf = pg.Surface((self.size[0], self.line_height * self.nlines))
             if self.bg:
-                self.srf.fill(self.bg)
-            y = self.scroll
+                self.text_srf.fill(self.bg)
+            y = 0
             for line in lines:
-                if y > -self.line_height and y < self.size[1]:
-                    text = TextNode(self.app, (0,y), (self.size[0], self.line_height), line, self.font, self.color, self.bg, self.center, self.srf)
-                    text.render()
+                text = TextNode(self.app, (0,y), (self.size[0], self.line_height),
+                                line, self.font, self.color, self.bg, self.center,
+                                draw_srf = self.text_srf)
+                text.parent = self
+                text.render()
                 y += self.line_height
+
+        if self.scroll != self.old_scroll or self.text != self.old_text:
+            self.old_text = self.text
+            self.old_scroll = self.scroll
+            self.srf.fill(self.bg)
+            self.srf.blit(self.text_srf, (0, -self.scroll))
         super().render()
 
 class ButtonNode(TextNode):
-    def __init__(self, app, pos=(0,0), size=(100, 100), text="This is a TextNode", font = None, color=(255,255,255), background=(0,0,0), on_press=None, center = False):
+    def __init__(self, app, pos=(0,0), size=(100, 100), text="This is a TextNode",
+                 font = None, color=(255,255,255), background=(0,0,0), on_press=None,
+                 center = False):
         super().__init__(app, pos, size, text, font, color, background, center)
         self.on_press = on_press
         self.pressed = False
@@ -594,5 +645,5 @@ class PromptApp(TextApp):
         
 
 if __name__ == '__main__':
-    vos = VirtualOS(resolution = None)
+    vos = VirtualOS(resolution = (1200, 900))
     vos.start()
