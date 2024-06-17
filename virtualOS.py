@@ -73,7 +73,10 @@ class VirtualOS:
         if self.bg:
             self.screen.fill(self.bg)
         for app in self.apps:
-            app.render()
+            if app.can_update:
+                app.render()
+            elif 'WindowApp' in app.flags:
+                app.dead_render()
         pg.display.update()
 
     def save(self, path, data):
@@ -215,8 +218,11 @@ class App:
         self.flags = []
         self.supported_types = []
 
-    def open_path(self, path):
+    def can_open_path(self, path):
         return path.split('.')[-1] in self.supported_types
+
+    def open_path(self, path):
+        return self.can_open_path(path)
 
     def on_run(self):pass
     def on_close(self):pass
@@ -243,7 +249,7 @@ class App:
         if self.on_close:
             self.on_close()
         if "app.py" not in self.list_folder(""):self.delete("")
-        self.vos.apps.remove(self)
+        if self in self.vos.apps:self.vos.apps.remove(self)
         
     def update(self):
         pass
@@ -318,7 +324,7 @@ class WindowApp(SurfaceApp):
     def focus(self):
         self.vos.stop_all_window_apps()
         self.can_update = True
-        self.vos.apps.remove(self)
+        if self in self.vos.apps:self.vos.apps.remove(self)
         self.vos.apps.append(self)
 
     def on_run(self):
@@ -328,7 +334,9 @@ class WindowApp(SurfaceApp):
         self.focus()
 
     def on_close(self):
-        self.vos.input.on_click.remove(self.on_click)
+        on_clicks = self.vos.input.on_click
+        if self.on_click in on_clicks:
+            on_clicks.remove(self.on_click)
 
     def on_click(self):
         tabx, taby = self.tab_pos
@@ -366,6 +374,10 @@ class WindowApp(SurfaceApp):
     @property
     def tab_pos(self):
         return (self.pos[0], self.pos[1] - self.tab_height)
+
+    @property
+    def full_rect(self):
+        return list(self.tab_pos) + [self.res[0], self.res[1]+self.tab_height]
     
     def update(self):
         if not self.visible:
@@ -378,6 +390,12 @@ class WindowApp(SurfaceApp):
                 self.dragging = False
     
     def render(self):
+        if self.visible:
+            self.vos.screen.blit(self.srf, self.pos)
+            if self.res != self.vos.res:
+                self.vos.screen.blit(self.tab_srf, self.tab_pos)
+    
+    def dead_render(self):
         if self.visible:
             self.vos.screen.blit(self.srf, self.pos)
             if self.res != self.vos.res:
@@ -637,6 +655,7 @@ class DictMenuApp(TextApp):
 class PromptApp(TextApp):
     def __init__(self, name, vos, prompt="Enter text:", callback=None, resolution=(400, 75)):
         super().__init__(name, vos, resolution)
+        self.can_minimize = False
         self.vos.input.text = ""
         self.prompt, self.callback = prompt, callback
         self.vos.input.keys_inst = []

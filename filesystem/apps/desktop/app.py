@@ -41,6 +41,13 @@ class MyApp(SurfaceApp):
         self.minimized_apps.append(app)
         self.minimized_app_names.append(app.name)
 
+    @property
+    def mouse_not_within_app(self):
+        for app in self.vos.apps:
+            if 'WindowApp' in app.flags and point_within_rect(self.vos.input.mouse, app.full_rect):
+                return False
+        return True
+
     def update(self):
         super().update()
         for app in self.vos.apps:
@@ -48,16 +55,17 @@ class MyApp(SurfaceApp):
                 app.on_minimize = self.on_minimize
         x, y = self.margin, self.margin
         for app_name, icon in self.icons.items():
-            if self.vos.input.click_inst and point_within_rect(self.vos.input.mouse, (x, y, self.app_size, self.app_size)):
-                if app_name in self.minimized_app_names:
-                    app = self.minimized_apps[self.minimized_app_names.index(app_name)]
-                    app.visible = True
-                    self.minimized_app_names.remove(app_name)
-                    self.minimized_apps.remove(app)
-                else:
-                    result = self.vos.run(app_name)
-                    if result == 2:
-                        self.vos.get_app(app_name).minimize()
+            if self.vos.input.click_inst and self.mouse_not_within_app:
+                if point_within_rect(self.vos.input.mouse, (x, y, self.app_size, self.app_size)):
+                    if app_name in self.minimized_app_names:
+                        app = self.minimized_apps[self.minimized_app_names.index(app_name)]
+                        app.visible = True
+                        self.minimized_app_names.remove(app_name)
+                        self.minimized_apps.remove(app)
+                    else:
+                        result = self.vos.run(app_name)
+                        if result == 2:
+                            self.vos.get_app(app_name).minimize()
             
             x += self.app_size + self.margin
             if x + self.app_size > self.res[0]:

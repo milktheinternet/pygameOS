@@ -10,14 +10,18 @@ class MyApp(DictMenuApp):
         self.root = self.vos.filesystem
         self.tree = self.make_options("")
 
-    def save_file(self, path):
+    def save_file(self, path, callback):
+        self.on_paste = callback
         self.reset()
         self.copied = "tmp/"+path
-        self.make_save_options(self)
+        self.tree = self.make_save_options("")
 
     def copy(self, path):
         self.copied = path
         self.vos.log('copying '+path)
+
+    def on_paste(self, pasted_to):
+        print("PASTED!!",pasted_to)
         
     def paste(self, path):
         if not self.copied:return
@@ -28,6 +32,8 @@ class MyApp(DictMenuApp):
             self.vos.copy_folder(self.copied, path)
         else:
             self.vos.copy(self.copied, path)
+
+        self.on_paste(path)
         self.update_tree()
 
     def delete(self, path):
@@ -47,6 +53,12 @@ class MyApp(DictMenuApp):
     def open_path(self, path):
         self.location = []
         self.tree = self.make_options(path)
+
+    def open_file(self, path):
+        for app in self.vos.apps:
+            if app.open_path(path):
+                return
+        self.close()
     
     def make_options(self, path):
         if not path or path[-1] == '/':
@@ -63,7 +75,7 @@ class MyApp(DictMenuApp):
                 }
         else:
             return {
-                "open":{"Feature not supported":None},
+                "open":lambda:self.open_file(path),
                 "copy":lambda:self.copy(path),
                 "delete":lambda:self.delete(path),
                 "rename":lambda:self.rename(path)
@@ -71,15 +83,14 @@ class MyApp(DictMenuApp):
     
     def make_save_options(self, path):
         if not path or path[-1] == '/':
-            branch = {opt:self.make_options(path + opt) for opt in self.vos.list_folder(path)}
+            branch = {opt:self.make_save_options(path + opt) for opt in self.vos.list_folder(path)}
             branch["flags"] = ["double_back"]
             return branch
         elif isdir(self.root + path):
             return {
-                "open":self.make_options(path+'/'),
+                "open":self.make_save_options(path+'/'),
                 "save in folder":lambda:(self.paste(path),self.close())
                 }
-        return {}
     
     def update(self):
         super().update()

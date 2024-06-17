@@ -8,6 +8,8 @@ class MyApp(NodeApp):
 
         super().__init__(name, vos, resolution)
 
+        self.supported_types = 'txt json xml csv tsv yaml yml py js html css php rb java c cpp cs sh bat ps1 r pl ini conf env cfg toml properties md rst tex log resx rc adoc sql psql lua eml vbs v sv groovy m sas f95 f90 f pas patch diff hpp h tcl lisp clj cljs edn sc scm ss sps ksh csh zsh awk makefile cmake mk gradle dockerfile gitignore hgignore tf tfvars terraform jsx ts tsx xhtml shtml scss sass coffee litcoffee pyw jinja2 jin j2 erb haml slim tpl twig mustache jade pug ejs handlebars hbs htm vb vba bas cls frm frx mht mhtml json5 ndjson tm theme icns strings plist map pbxproj xcworkspace xcconfig storyboard xib bicep rst tex dofile mf man po pot resw targets wsdl xsd plist sbt scal cjsx mxml as axml resx res wsf plist plist'.split(' ')
+
         self.can_minimize = False
         
         self.font = pg.font.SysFont("monospace", 17)
@@ -31,15 +33,27 @@ class MyApp(NodeApp):
         self.savepath = None
         self.saved = True
 
+    def open_path(self, path):
+        if self.can_open_path(path):
+            self.openfile(path)
+            return True
+        return False
+
     def btnsaveas(self):
-        print("SAVING FILE")
         def cb(name):
+            print("SAVING", name)
             self.vos.save("tmp/"+name, self.get_text())
             self.vos.run("Files")
             filesapp = self.vos.get_app("Files")
-            print("saving file as", name)
-            filesapp.save_file(name)
-            self.vos.delete("tmp/"+name)
+            
+            def cb2(savepath):
+                print("SUCCESSFULLY SAVED", name, "TO", savepath)
+                self.saved = True
+                self.savepath = savepath
+                self.vos.delete("tmp/"+name)
+                filesapp.close()
+                
+            filesapp.save_file(name, cb2)
         PromptApp("prompt", self.vos, "Enter file name below (including type).", cb).run()
 
     def btnsave(self):
@@ -184,7 +198,7 @@ class MyApp(NodeApp):
         if inp.click_inst and point_within_rect(inp.mouse, self.rect):
             mx, my = self.mouse
             my -= self.tabh
-            current_line = (my - self.text.scroll) // self.line_height
+            current_line = (my + self.text.scroll) // self.line_height
             self.at_y = min(max(0, current_line), len(self.lines)-1)
             
 
