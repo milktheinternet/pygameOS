@@ -3,21 +3,21 @@ from virtualOS import *
 from random import randint
 
 class MyApp(NodeApp):
-    def __init__(self, name, vos, resolution=(500, 800)):
+    def __init__(self, name, vos, resolution=(400, 600)):
         name += str(randint(0,1000))
 
         super().__init__(name, vos, resolution)
 
         self.can_minimize = False
         
-        self.font = pg.font.SysFont("monospace", 20)
-        self.tabh = 20
+        self.font = pg.font.SysFont("monospace", 17)
+        self.tabh = 17
         self.tabc = (10, 10, 10)
         self.bg = (30, 30, 30)
         self.color = (255, 255, 255)
         self.resize()
 
-        self.newfile()
+        self.btnnewfile()
         
         self.at_x = 0
         self.at_y = 0
@@ -31,17 +31,21 @@ class MyApp(NodeApp):
         self.savepath = None
         self.saved = True
 
-    def saveas(self):
-        def cb():
+    def btnsaveas(self):
+        print("SAVING FILE")
+        def cb(name):
+            self.vos.save("tmp/"+name, self.get_text())
             self.vos.run("Files")
             filesapp = self.vos.get_app("Files")
+            print("saving file as", name)
             filesapp.save_file(name)
-        PromptApp("prompt", self.vos, "Enter file name below (including type).", cb)
+            self.vos.delete("tmp/"+name)
+        PromptApp("prompt", self.vos, "Enter file name below (including type).", cb).run()
 
-    def save(self):
+    def btnsave(self):
         if self.savepath: self.vos.save(self.savepath, self.get_text())
 
-    def newfile(self):
+    def btnnewfile(self):
         self.savepath = None
         self.lines = ['']
         self.reset_cursor()
@@ -73,14 +77,15 @@ class MyApp(NodeApp):
         self.text = ScrollTextNode(self, (0, self.tabh), (self.res[0], self.res[1] - self.tabh),
                                    font = self.font, color = self.color, background = self.bg,
                                    line_height = self.line_height, draw_srf = None)
+        self.line_height = self.text.line_height
         self.add(self.text)
 
         self.buttons = {}
 
         btndata = {
-            "save": None,
-            "save as": self.saveas,
-            "new": self.newfile,
+            "save": self.btnsave,
+            "save as": self.btnsaveas,
+            "new": self.btnnewfile,
             }
 
         x = 0
@@ -134,10 +139,9 @@ class MyApp(NodeApp):
         self.at_y = min(max(0, self.at_y), len(self.lines)-1)
         self.at_x = min(max(0, self.at_x), len(self.lines[self.at_y]))
 
-    def update(self):
-        super().update()
+    def update_typing(self):
         inp = self.vos.input
-
+        
         if inp.text:
             line = self.lines[self.at_y]
             self.lines[self.at_y] = line[:self.at_x] + inp.text + line[self.at_x:]
@@ -162,7 +166,8 @@ class MyApp(NodeApp):
                 self.lines = lines[:self.at_y] + lines[self.at_y+1:]
             else:
                 line = self.lines[self.at_y]
-                self.lines[self.at_y] = line[:self.at_x-1] + line[self.at_x:]
+                if line:
+                    self.lines[self.at_y] = line[:self.at_x-1] + line[self.at_x:]
             inp.keys_inst.append(pg.K_LEFT)
             inp.keys.append(pg.K_LEFT)
             self.saved = False
@@ -173,6 +178,22 @@ class MyApp(NodeApp):
             inp.keys.remove(pg.K_RIGHT)
         if pg.K_BACKSPACE in inp.keys_inst:
             inp.keys.remove(pg.K_LEFT)
+
+    def update_click(self):
+        inp = self.vos.input
+        if inp.click_inst and point_within_rect(inp.mouse, self.rect):
+            mx, my = self.mouse
+            my -= self.tabh
+            current_line = (my - self.text.scroll) // self.line_height
+            self.at_y = min(max(0, current_line), len(self.lines)-1)
+            
+
+    def update(self):
+        super().update()
+
+        self.update_typing()
+
+        self.update_click()
 
     def render(self):
         self.buttons['save'].text = "save" if self.saved else "save*"

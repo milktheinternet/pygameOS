@@ -3,9 +3,17 @@ from virtualOS import DictMenuApp, pg, isdir, exists,PromptApp
 class MyApp(DictMenuApp):
     def __init__(self, name, vos, resolution = (500, 400)):
         super().__init__(name, vos, resolution)
+        self.reset()
+
+    def reset(self):
         self.copied = ""
         self.root = self.vos.filesystem
         self.tree = self.make_options("")
+
+    def save_file(self, path):
+        self.reset()
+        self.copied = "tmp/"+path
+        self.make_save_options(self)
 
     def copy(self, path):
         self.copied = path
@@ -24,10 +32,11 @@ class MyApp(DictMenuApp):
 
     def delete(self, path):
         self.vos.delete(path)
-        self.tree = self.make_options("")
         self.back()
+        self.tree = self.make_options("")
 
-    def update_tree(self):self.tree = self.make_options("")
+    def update_tree(self):
+        self.tree = self.make_options("")
 
     def rename(self, from_path):
         to_path = '/'.join(from_path.split('/')[:-1])+'/'
@@ -59,6 +68,18 @@ class MyApp(DictMenuApp):
                 "delete":lambda:self.delete(path),
                 "rename":lambda:self.rename(path)
                 }
+    
+    def make_save_options(self, path):
+        if not path or path[-1] == '/':
+            branch = {opt:self.make_options(path + opt) for opt in self.vos.list_folder(path)}
+            branch["flags"] = ["double_back"]
+            return branch
+        elif isdir(self.root + path):
+            return {
+                "open":self.make_options(path+'/'),
+                "save in folder":lambda:(self.paste(path),self.close())
+                }
+        return {}
     
     def update(self):
         super().update()

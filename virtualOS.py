@@ -42,6 +42,8 @@ class VirtualOS:
 
         self.copied_text = ""
 
+        self.tmpdir = 'tmp/'
+
     def log(self, text):
         #print(text)
         self.LOG += text
@@ -240,6 +242,7 @@ class App:
         self.vos.log(f'closing {self.name}')
         if self.on_close:
             self.on_close()
+        if "app.py" not in self.list_folder(""):self.delete("")
         self.vos.apps.remove(self)
         
     def update(self):
@@ -255,6 +258,10 @@ class SurfaceApp(App):
         self.pos = pos
         self.srf = None
         self.visible = True
+
+    @property
+    def rect(self):
+        return list(self.pos)+list(self.res)
 
     def center(self):
         w, h = self.res
@@ -318,6 +325,7 @@ class WindowApp(SurfaceApp):
         self.srf.fill(self.bg)
         self.make_tab_srf()
         self.vos.input.on_click.append(self.on_click)
+        self.focus()
 
     def on_close(self):
         self.vos.input.on_click.remove(self.on_click)
@@ -635,13 +643,14 @@ class PromptApp(TextApp):
         self.bg = (255,255,255)
         self.color = (0,0,0)
     def update(self):
+        inp = self.vos.input
         if not self.visible:
             return
         super().update()
-        if pg.K_RETURN in self.vos.input.keys_inst:
-            self.callback(self.vos.input.text[:-1]) # remove '\r' character
+        if pg.K_RETURN in inp.keys_inst:
+            self.callback(inp.text)
             self.close()
-        self.update_render(self.prompt+'\n'+self.vos.input.text)
+        self.update_render(self.prompt+'\n'+inp.text)
         
 
 if __name__ == '__main__':
