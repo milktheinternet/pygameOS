@@ -8,7 +8,10 @@ class MyApp(NodeApp):
 
         super().__init__(name, vos, resolution)
 
-        self.supported_types = 'txt json xml csv tsv yaml yml py js html css php rb java c cpp cs sh bat ps1 r pl ini conf env cfg toml properties md rst tex log resx rc adoc sql psql lua eml vbs v sv groovy m sas f95 f90 f pas patch diff hpp h tcl lisp clj cljs edn sc scm ss sps ksh csh zsh awk makefile cmake mk gradle dockerfile gitignore hgignore tf tfvars terraform jsx ts tsx xhtml shtml scss sass coffee litcoffee pyw jinja2 jin j2 erb haml slim tpl twig mustache jade pug ejs handlebars hbs htm vb vba bas cls frm frx mht mhtml json5 ndjson tm theme icns strings plist map pbxproj xcworkspace xcconfig storyboard xib bicep rst tex dofile mf man po pot resw targets wsdl xsd plist sbt scal cjsx mxml as axml resx res wsf plist plist'.split(' ')
+        self.ores = resolution
+        self.fullscreen = False
+
+        self.supported_types = 'txt py html css js json'.split()
 
         self.can_minimize = False
         
@@ -17,7 +20,8 @@ class MyApp(NodeApp):
         self.tabc = (10, 10, 10)
         self.bg = (30, 30, 30)
         self.color = (255, 255, 255)
-        self.resize()
+        
+        self.setup_nodes()
 
         self.btnnewfile()
         
@@ -33,9 +37,17 @@ class MyApp(NodeApp):
         self.savepath = None
         self.saved = True
 
+    def toggle_fs(self):
+        self.fullscreen = not self.fullscreen
+        self.resize(self.vos.res if self.fullscreen else self.ores)
+        self.setup_nodes()
+
     def open_path(self, path):
+        print("opening", path)
         if self.can_open_path(path):
+            print("can open!")
             self.openfile(path)
+            self.focus()
             return True
         return False
 
@@ -78,7 +90,7 @@ class MyApp(NodeApp):
     def get_text(self):
         return '\n'.join(self.lines)
 
-    def resize(self, tabh = None, line_height = None):
+    def setup_nodes(self, tabh = None, line_height = None):
         self.line_height = line_height
         if tabh:
             self.tabh = tabh
@@ -100,6 +112,7 @@ class MyApp(NodeApp):
             "save": self.btnsave,
             "save as": self.btnsaveas,
             "new": self.btnnewfile,
+            "fullscreen": self.toggle_fs
             }
 
         x = 0
