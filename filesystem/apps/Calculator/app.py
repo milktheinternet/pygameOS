@@ -21,7 +21,7 @@ class MyApp(NodeApp):
 
         self.children = []
 
-        self.font = pg.font.SysFont('monospace', font_size)
+        self.font = self.vos.default_font(font_size)
         
         W, H = self.res
         EXP_H = expression_height

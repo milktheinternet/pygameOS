@@ -28,9 +28,9 @@ class VirtualOS:
 
         self.time = 0
 
-        self.font = pg.font.SysFont('monospace', 17)
-
         self.filesystem = 'filesystem/'
+
+        self.font = self.default_font(17)
         
         self.appdir = 'apps/'
         for folder in self.list_folder(self.appdir):
@@ -43,6 +43,9 @@ class VirtualOS:
         self.copied_text = ""
 
         self.tmpdir = 'tmp/'
+
+    def default_font(self, size=17):
+        return pg.font.Font(self.filesystem+'fonts/monospace.otf', size)
 
     def log(self, text):
         #print(text)

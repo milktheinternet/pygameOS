@@ -15,7 +15,7 @@ class MyApp(NodeApp):
 
         self.can_minimize = False
         
-        self.font = pg.font.SysFont("monospace", 17)
+        self.font = self.vos.default_font(17)
         self.tabh = 17
         self.tabc = (10, 10, 10)
         self.bg = (30, 30, 30)
@@ -43,9 +43,7 @@ class MyApp(NodeApp):
         self.setup_nodes()
 
     def open_path(self, path):
-        print("opening", path)
         if self.can_open_path(path):
-            print("can open!")
             self.openfile(path)
             self.focus()
             return True
